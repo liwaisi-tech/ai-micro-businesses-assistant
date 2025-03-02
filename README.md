@@ -2,7 +2,7 @@
 
 ## An AI Assistant for Rural Micro-Businesses
 
-# LiwAIsi Micro Business Assistant  is an intelligent agent designed for helping small businesses in rural Latin American communities. The project aims to bridge the technology gap by bringing sophisticated AI solutions to micro-entrepreneurs in underserved areas that use Whatsapp and Telegram for business.
+LiwAIsi Micro Business Assistant  is an intelligent agent designed for helping small businesses in rural Latin American communities. The project aims to bridge the technology gap by bringing sophisticated AI solutions to micro-entrepreneurs in underserved areas that use Whatsapp and Telegram for business.
 
 ## 🌟 Overview
 
