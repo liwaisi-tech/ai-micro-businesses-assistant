@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "ai-micro-businesses-assistant"
+version = "0.1.0"
+description = ""
+authors = ["Liwaisi Tech"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.115.11"
+uvicorn = {extras = ["standar"], version = "^0.34.0"}
+python-dotenv = "^1.0.1"
+httpx = "^0.28.1"
+pytest = "^8.3.5"
+
+[tool.poetry.scripts]
+ai-assistant = "cli:main"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.4"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
