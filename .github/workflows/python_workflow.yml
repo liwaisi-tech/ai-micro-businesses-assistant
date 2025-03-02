@@ -22,6 +22,17 @@ jobs:
       - name: Install dependencies
         run: |
           poetry install --no-root
+      - name: Debug environment
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Directory listing:"
+          ls -la
+          echo "Python sys.path:"
+          poetry run python -c "import sys; print(sys.path)"
+          echo "Module structure:"
+          poetry run python -c "import pkgutil; print([p for p in pkgutil.iter_modules()])"
       - name: Run tests
         run: |
-          poetry run pytest
+          poetry run pytest -v
+        env:
+          PYTHONPATH: ${{ github.workspace }}
