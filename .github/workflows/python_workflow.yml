@@ -35,4 +35,4 @@ jobs:
         run: |
           poetry run pytest -v
         env:
-          PYTHONPATH: ${{ github.workspace }}
+          PYTHONPATH: ${{ github.workspace }}/src
