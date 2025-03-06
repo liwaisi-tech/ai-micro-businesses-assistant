@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
-from application.services.health_check_service import HealthCheckServiceImpl
-from application.usecases.health_check_usecase import HealthCheckUseCase
-from application.dtos.health_check_dto import HealthCheckDTO
+from application.domain.health.services.health_check_service import HealthCheckServiceImpl
+from application.domain.health.usecases.health_check_usecase import HealthCheckUseCase
+from application.domain.health.dtos.health_check_dto import HealthCheckDTO
 
 
 class HealthController:

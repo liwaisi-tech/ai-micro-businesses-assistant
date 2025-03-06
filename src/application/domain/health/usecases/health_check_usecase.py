@@ -1,5 +1,5 @@
-from application.ports.health_check_port import HealthCheckPort
-from application.dtos.health_check_dto import HealthCheckDTO
+from application.domain.health.ports.health_check_port import HealthCheckPort
+from application.domain.health.dtos.health_check_dto import HealthCheckDTO
 
 
 class HealthCheckUseCase:

@@ -1,7 +1,12 @@
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from src.infrastructure.api.fastapi.routes.routes import register_routes
+from infrastructure.api.fastapi.routes.routes import register_routes
+from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env file if it exists
+load_dotenv(override=True)
 
 def create_app() -> FastAPI:
     """

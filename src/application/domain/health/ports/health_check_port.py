@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from application.dtos.health_check_dto import HealthCheckDTO
+from application.domain.health.dtos.health_check_dto import HealthCheckDTO
 
 
 class HealthCheckPort(ABC):
