@@ -13,6 +13,7 @@ uvicorn = {extras = ["standar"], version = "^0.34.0"}
 python-dotenv = "^1.0.1"
 httpx = "^0.28.1"
 pytest = "^8.3.5"
+openai = "^1.65.4"
 
 [tool.poetry.scripts]
 ai-assistant = "cli:main"
