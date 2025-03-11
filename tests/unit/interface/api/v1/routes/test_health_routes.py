@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from fastapi.testclient import TestClient
 import pytest
 
+from business_assistant.config.settings import settings
 from business_assistant.infrastructure.web.app import create_app
 from business_assistant.interface.api.v1.models.health_models import HealthResponse
 
@@ -17,7 +18,7 @@ def client() -> TestClient:
 def test_health_check_endpoint(client: TestClient) -> None:
     """Test health check endpoint returns expected response."""
     # When
-    response = client.get("/api/v1/health")
+    response = client.get(f"{settings.api_prefix}/health")
     
     # Then
     assert response.status_code == 200
