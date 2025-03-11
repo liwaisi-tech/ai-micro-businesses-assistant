@@ -1,4 +1,4 @@
-name: Python Poetry Workflow
+name: Python CI/CD Workflow
 
 on:
   push:
@@ -15,24 +15,22 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install Poetry
-        run: |
-          pip install --upgrade pip
-          pip install poetry
       - name: Install dependencies
         run: |
-          poetry install --no-root
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
       - name: Debug environment
         run: |
           echo "Current directory: $(pwd)"
           echo "Directory listing:"
           ls -la
           echo "Python sys.path:"
-          poetry run python -c "import sys; print(sys.path)"
+          python -c "import sys; print(sys.path)"
           echo "Module structure:"
-          poetry run python -c "import pkgutil; print([p for p in pkgutil.iter_modules()])"
+          python -c "import pkgutil; print([p for p in pkgutil.iter_modules()])"
       - name: Run tests
         run: |
-          poetry run pytest -v
+          pytest -v
         env:
           PYTHONPATH: ${{ github.workspace }}/src
