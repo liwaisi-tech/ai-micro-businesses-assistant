@@ -47,12 +47,11 @@ class ChatCLI:
         try:
             headers = {
                 "Content-Type": "application/json",
-                "whatsapp-number": self.whatsapp_number
             }
             response = requests.post(
                 self.api_url,
                 headers=headers,
-                json={"message": message}
+                json={"message": message, "whatsapp_number": self.whatsapp_number}
             )
             response.raise_for_status()
             return response.json()["response"]
