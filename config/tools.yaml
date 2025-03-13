@@ -1,0 +1,63 @@
+sources:
+  postgres_source:
+    kind: postgres
+    host: db
+    port: 5432
+    database: business_assistant_db
+    user: postgres
+    password: postgres
+tools:
+  search_available_products:
+    kind: postgres-sql
+    source: postgres_source
+    statement: |
+      SELECT 
+        p.product_id, 
+        p.name AS product_name, 
+        p.description AS product_description, 
+        c.name AS category_name,
+        v.variant_id, 
+        v.name AS variant_name, 
+        v.sku, 
+        v.price, 
+        v.active,
+        i.quantity, 
+        i.expiration_date
+      FROM 
+        products p
+      JOIN 
+        categories c ON p.category_id = c.category_id
+      LEFT JOIN 
+        product_variants v ON p.product_id = v.product_id
+      LEFT JOIN 
+        inventory i ON v.variant_id = i.variant_id
+      WHERE 
+        LOWER(p.name) LIKE LOWER('%' || $1 || '%') OR
+        LOWER(p.description) LIKE LOWER('%' || $1 || '%') OR
+        LOWER(v.name) LIKE LOWER('%' || $1 || '%')
+      ORDER BY
+        CASE WHEN i.expiration_date IS NULL THEN 1 ELSE 0 END,
+        i.expiration_date DESC,
+        i.quantity DESC
+      LIMIT 10
+    description: |
+      Use this tool to search for available products when a user asks about a specific product.
+      The tool searches for products by name, description, or variant name and returns detailed information
+      including pricing, availability, and expiration dates if applicable.
+      
+      The search is case-insensitive and will find partial matches in product names, descriptions, or variant names.
+      Results are ordered to prioritize products that:
+      1. Have non-expired inventory (if applicable)
+      2. Have the latest expiration date (for perishable products)
+      3. Have the highest quantity in stock
+      
+      Example usage:
+      When a user asks "Do you have honey?", use this tool with parameter "honey".
+      When a user asks about "300g honey jar", use this tool with parameter "honey jar".
+      
+      The tool will return information about product variants, prices, and availability to help
+      provide a complete response to the customer.
+    parameters:
+      - name: product_search_term
+        type: string
+        description: The product name, description, or variant to search for (e.g., "honey", "pizza", "consulting")
