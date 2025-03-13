@@ -92,7 +92,6 @@ class ChatCLI:
                     response = self.send_message(message)
                     if response:
                         print(f"\nSara: {response}")
-                        print("-" * 50)
                         
             except KeyboardInterrupt:
                 print("\n\n👋 ¡Gracias por usar nuestro servicio!")
