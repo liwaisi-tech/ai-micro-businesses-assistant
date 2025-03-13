@@ -127,23 +127,7 @@ def create_chatbot_node() -> callable:
         # Update context with any product information from the response
         # This helps maintain product context between interactions
         assistant_response = response["messages"][-1].content
-        
-        # Check if the response contains product information
-        if any(keyword in assistant_response.lower() for keyword in ["mielawi", "precio", "disponible", "unidades"]):
-            # Store or update product context
-            if "products" not in state["context"]:
-                state["context"]["products"] = []
-                
-            # Extract product information from the response
-            # This is a simple implementation - could be enhanced with regex or more sophisticated parsing
-            for line in assistant_response.split("\n"):
-                if "mielawi" in line.lower() and "precio" in line.lower():
-                    # Only add if not already in the list
-                    if line.strip() not in state["context"]["products"]:
-                        state["context"]["products"].append(line.strip())
-            
-            logger.debug(f"Updated context with products: {state['context']}")
-        
+         
         # Return the agent's response and updated context
         return {
             "messages": [response["messages"][-1]],
