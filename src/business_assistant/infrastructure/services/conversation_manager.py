@@ -2,7 +2,7 @@
 
 import logging
 from typing import Dict
-from src.business_assistant.infrastructure.langgraph.workflows.conversation_workflow import ConversationWorkflow
+from business_assistant.infrastructure.langgraph.workflows.conversation_workflow import ConversationWorkflow
 
 logger = logging.getLogger(__name__)
 
