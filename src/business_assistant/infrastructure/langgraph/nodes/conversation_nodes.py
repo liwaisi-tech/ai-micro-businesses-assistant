@@ -122,7 +122,7 @@ def create_chatbot_node() -> callable:
         }
         
         # Invoke the agent
-        response = agent.invoke(inputs, stream_mode="values", config=config, debug=True)
+        response = agent.invoke(inputs, stream_mode="values", config=config)
         
         # Update context with any product information from the response
         # This helps maintain product context between interactions

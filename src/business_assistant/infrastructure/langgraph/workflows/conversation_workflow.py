@@ -1,9 +1,13 @@
 """Conversation workflow implementation using langgraph with React agent."""
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.postgres import PostgresSaver
+import psycopg_pool
+import psycopg
 
 from business_assistant.infrastructure.ai.prompts import get_system_prompt
 from business_assistant.infrastructure.langgraph.nodes.conversation_nodes import State, create_chatbot_node
+from business_assistant.config.settings import settings
 
 import logging
 
@@ -20,8 +24,16 @@ class ConversationWorkflow:
         """
         self.graph_builder = StateGraph(State)
         self._setup_graph()
-        # Use MemorySaver to maintain conversation state between calls
-        self.graph = self.graph_builder.compile(checkpointer=MemorySaver())
+        
+        # Use PostgreSQL checkpointer if possible, fallback to MemorySaver
+        try:
+            checkpointer = self._init_postgres_checkpointer()
+            logger.info("Using PostgreSQL checkpointer for conversation state persistence")
+        except Exception as e:
+            logger.warning(f"Failed to initialize PostgreSQL checkpointer, falling back to MemorySaver: {str(e)}")
+            checkpointer = MemorySaver()
+            
+        self.graph = self.graph_builder.compile(checkpointer=checkpointer)
         # Store thread IDs for different users
         self.user_threads = {}
         # Store context for different users
@@ -35,6 +47,36 @@ class ConversationWorkflow:
         # Add edges
         self.graph_builder.add_edge(START, "chatbot")
         self.graph_builder.add_edge("chatbot", END)
+        
+    def _init_postgres_checkpointer(self):
+        """Initialize the PostgreSQL checkpointer saver.
+        
+        Returns:
+            PostgresSaver: The PostgreSQL checkpointer instance.
+            
+        Raises:
+            Exception: If the PostgreSQL connection fails.
+        """
+        try:
+            # Create connection string from settings
+            connection_string = f"postgresql://{settings.db_user}:{settings.db_password}@{settings.db_host}:{settings.db_port}/{settings.db_name}"
+            
+
+            
+            # Connect with autocommit=True to avoid transaction blocks for CREATE INDEX CONCURRENTLY
+            conn = psycopg.connect(connection_string, autocommit=True)
+            
+            # Create PostgresSaver with the direct connection
+            checkpointer = PostgresSaver(conn=conn)
+            
+            # Setup the tables (this will work now because autocommit=True)
+            checkpointer.setup()
+            
+            logger.info("PostgreSQL checkpointer initialized successfully")
+            return checkpointer
+        except Exception as e:
+            logger.error(f"Failed to initialize PostgreSQL checkpointer: {str(e)}")
+            raise
 
     def process_message(self, user_id: str, message: str) -> str:
         """Process a message through the conversation workflow using React agent.
