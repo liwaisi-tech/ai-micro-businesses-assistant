@@ -1,8 +1,18 @@
 """Main application module."""
 import logging
+import sys
 
 from business_assistant.infrastructure.web.server import run_server, get_application
 from business_assistant.infrastructure.persistence.migration import run_migrations
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 
 logger = logging.getLogger(__name__)
 

@@ -2,8 +2,7 @@
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.postgres import PostgresSaver
-import psycopg_pool
-import psycopg
+from psycopg_pool import ConnectionPool
 
 from business_assistant.infrastructure.ai.prompts import get_system_prompt
 from business_assistant.infrastructure.langgraph.nodes.conversation_nodes import State, create_chatbot_node
@@ -27,13 +26,15 @@ class ConversationWorkflow:
         
         # Use PostgreSQL checkpointer if possible, fallback to MemorySaver
         try:
-            checkpointer = self._init_postgres_checkpointer()
+            self.checkpointer = self._init_postgres_checkpointer()
             logger.info("Using PostgreSQL checkpointer for conversation state persistence")
+            self.using_postgres = True
         except Exception as e:
             logger.warning(f"Failed to initialize PostgreSQL checkpointer, falling back to MemorySaver: {str(e)}")
-            checkpointer = MemorySaver()
+            self.checkpointer = MemorySaver()
+            self.using_postgres = False
             
-        self.graph = self.graph_builder.compile(checkpointer=checkpointer)
+        self.graph = self.graph_builder.compile(checkpointer=self.checkpointer)
         # Store thread IDs for different users
         self.user_threads = {}
         # Store context for different users
@@ -49,35 +50,80 @@ class ConversationWorkflow:
         self.graph_builder.add_edge("chatbot", END)
         
     def _init_postgres_checkpointer(self):
-        """Initialize the PostgreSQL checkpointer saver.
+        """Initialize the PostgreSQL checkpointer saver with a connection pool.
         
         Returns:
-            PostgresSaver: The PostgreSQL checkpointer instance.
+            PostgresSaver: The PostgreSQL checkpointer instance with connection pool.
             
         Raises:
-            Exception: If the PostgreSQL connection fails.
+            Exception: If the PostgreSQL connection pool initialization fails.
         """
         try:
             # Create connection string from settings
             connection_string = f"postgresql://{settings.db_user}:{settings.db_password}@{settings.db_host}:{settings.db_port}/{settings.db_name}"
             
-
+            # Connection pool configuration
+            connection_kwargs = {
+                "autocommit": True  # Enable autocommit to avoid transaction blocks for CREATE INDEX CONCURRENTLY
+            }
             
-            # Connect with autocommit=True to avoid transaction blocks for CREATE INDEX CONCURRENTLY
-            conn = psycopg.connect(connection_string, autocommit=True)
+            # Create a connection pool
+            pool = ConnectionPool(
+                conninfo=connection_string,
+                max_size=20,  # Maximum number of connections in the pool
+                min_size=5,   # Minimum number of connections to keep ready
+                kwargs=connection_kwargs
+            )
             
-            # Create PostgresSaver with the direct connection
-            checkpointer = PostgresSaver(conn=conn)
+            # Create PostgresSaver with the connection pool
+            checkpointer = PostgresSaver(pool)
             
-            # Setup the tables (this will work now because autocommit=True)
+            # Setup the tables
             checkpointer.setup()
             
-            logger.info("PostgreSQL checkpointer initialized successfully")
+            logger.info("PostgreSQL checkpointer with connection pool initialized successfully")
             return checkpointer
         except Exception as e:
             logger.error(f"Failed to initialize PostgreSQL checkpointer: {str(e)}")
             raise
 
+    def _restore_thread_from_checkpointer(self, user_id: str):
+        """Attempt to restore a thread and its context from the checkpointer.
+        
+        Args:
+            user_id: The unique identifier for the user
+            
+        Returns:
+            tuple: (thread_id, context) - The thread ID and context if found, or (None, {}) if not
+        """
+        thread_id = f"thread-{user_id}"
+        
+        # Early return if not using PostgreSQL checkpointer
+        if not self.using_postgres:
+            return thread_id, {}
+            
+        # Early return if checkpointer doesn't support listing checkpoints
+        if not hasattr(self.checkpointer, 'list_checkpoints'):
+            return thread_id, {}
+            
+        try:
+            # Direct check if thread exists in checkpoints
+            if thread_id not in self.checkpointer.list_checkpoints():
+                return thread_id, {}
+                
+            # Thread exists, get its state directly
+            state = self.checkpointer.get(thread_id)
+            
+            # Return context if available
+            if state and "context" in state:
+                logger.info(f"Restored context for user {user_id} from checkpoint")
+                return thread_id, state["context"]
+                
+        except Exception as e:
+            logger.warning(f"Error restoring thread from checkpointer: {str(e)}")
+            
+        return thread_id, {}
+    
     def process_message(self, user_id: str, message: str) -> str:
         """Process a message through the conversation workflow using React agent.
         
@@ -88,11 +134,16 @@ class ConversationWorkflow:
         Returns:
             The assistant's response.
         """
-        # Get or create a thread ID for this user
-        if user_id not in self.user_threads:
-            self.user_threads[user_id] = f"thread-{user_id}"
+        # Try to restore thread and context from checkpointer
+        thread_id, restored_context = self._restore_thread_from_checkpointer(user_id)
         
-        thread_id = self.user_threads[user_id]
+        # Update user_threads with the thread ID
+        self.user_threads[user_id] = thread_id
+        
+        # Use restored context if available, otherwise use existing in-memory context or empty dict
+        if restored_context:
+            self.user_contexts[user_id] = restored_context
+            logger.info(f"Using restored context for user {user_id} from checkpoint")
         
         # Get existing context for this user if available
         user_context = self.user_contexts.get(user_id, {})
@@ -136,6 +187,25 @@ class ConversationWorkflow:
                             # Store the context for this user
                             self.user_contexts[user_id] = last_context
                             logger.debug(f"Saved context for user {user_id}: {last_context}")
+                            
+                            # Explicitly save the state to the checkpointer if using PostgreSQL
+                            if self.using_postgres:
+                                try:
+                                    # Ensure the thread ID is in the checkpointer
+                                    thread_id = self.user_threads.get(user_id, f"thread-{user_id}")
+                                    
+                                    # Create a state object with the context
+                                    state_to_save = {
+                                        "messages": value["messages"],
+                                        "context": last_context,
+                                        "thread_id": thread_id
+                                    }
+                                    
+                                    # Save to the checkpointer
+                                    self.checkpointer.put(thread_id, state_to_save)
+                                    logger.info(f"Explicitly saved state to PostgreSQL checkpointer for thread {thread_id}")
+                                except Exception as e:
+                                    logger.error(f"Failed to explicitly save state to checkpointer: {str(e)}")
                         
                         # Handle both dict-like messages and LangChain message objects
                         last_message = value["messages"][-1]

@@ -1,0 +1,120 @@
+sources:
+  postgres_source:
+    kind: postgres
+    host: db
+    port: 5432
+    database: business_assistant_db
+    user: postgres
+    password: postgres
+tools:
+  search_available_non_expired_products:
+    kind: postgres-sql
+    source: postgres_source
+    statement: |
+      SELECT DISTINCT
+        p.product_id, 
+        p.name AS product_name, 
+        p.description AS product_description, 
+        c.name AS category_name,
+        COUNT(v.variant_id) AS variant_count,
+        MIN(v.price) AS min_price,
+        MAX(v.price) AS max_price,
+        SUM(i.quantity) AS total_quantity
+      FROM 
+        products p
+      JOIN 
+        categories c ON p.category_id = c.category_id
+      JOIN 
+        product_variants v ON p.product_id = v.product_id
+      JOIN 
+        inventory i ON v.variant_id = i.variant_id
+      WHERE 
+        (LOWER(p.name) LIKE LOWER('%' || $1 || '%') OR
+        LOWER(p.description) LIKE LOWER('%' || $1 || '%')) AND
+        i.quantity > 0 AND
+        (i.expiration_date IS NULL OR i.expiration_date > CURRENT_DATE)
+      GROUP BY
+        p.product_id, p.name, p.description, c.name
+      ORDER BY
+        p.name
+      LIMIT 10
+    description: |
+      Use this tool to quickly check if products are available in inventory with valid expiration dates.
+      This tool returns a simplified view focusing on main products rather than variants.
+      
+      The search is case-insensitive and will find partial matches in product names or descriptions.
+      Results only include products that:
+      1. Have at least one variant with quantity greater than 0
+      2. Have no expiration date OR have an expiration date in the future
+      
+      The tool returns aggregated information about each product including:
+      - Product name and description
+      - Category
+      - Number of available variants
+      - Price range (minimum and maximum prices)
+      - Total quantity across all variants
+      
+      Example usage:
+      When a user asks "What products do you have available?", use this tool with parameter "".
+      When a user asks "Do you have any honey products in stock?", use this tool with parameter "honey".
+      
+      For detailed variant information, use the search_available_variant_products tool after identifying available products.
+    parameters:
+      - name: product_search_term
+        type: string
+        description: The product name or description to search for (optional, can be empty to return all available products)
+
+  search_available_variant_products:
+    kind: postgres-sql
+    source: postgres_source
+    statement: |
+      SELECT 
+        p.product_id, 
+        p.name AS product_name, 
+        p.description AS product_description, 
+        c.name AS category_name,
+        v.variant_id, 
+        v.name AS variant_name, 
+        v.sku, 
+        v.price, 
+        v.active,
+        i.quantity, 
+        i.expiration_date
+      FROM 
+        products p
+      JOIN 
+        categories c ON p.category_id = c.category_id
+      LEFT JOIN 
+        product_variants v ON p.product_id = v.product_id
+      LEFT JOIN 
+        inventory i ON v.variant_id = i.variant_id
+      WHERE 
+        LOWER(p.name) LIKE LOWER('%' || $1 || '%') OR
+        LOWER(p.description) LIKE LOWER('%' || $1 || '%') OR
+        LOWER(v.name) LIKE LOWER('%' || $1 || '%')
+      ORDER BY
+        CASE WHEN i.expiration_date IS NULL THEN 1 ELSE 0 END,
+        i.expiration_date DESC,
+        i.quantity DESC
+      LIMIT 10
+    description: |
+      Use this tool to search for available products when a user asks about a specific product.
+      The tool searches for products by name, description, or variant name and returns detailed information
+      including pricing, availability, and expiration dates if applicable.
+      
+      The search is case-insensitive and will find partial matches in product names, descriptions, or variant names.
+      Results are ordered to prioritize products that:
+      1. Have non-expired inventory (if applicable)
+      2. Have the latest expiration date (for perishable products)
+      3. Have the highest quantity in stock
+      
+      Example usage:
+      When a user asks "Do you have honey?", use this tool with parameter "honey".
+      When a user asks about "300g honey jar", use this tool with parameter "honey jar".
+      
+      The tool will return information about product variants, prices, and availability to help
+      provide a complete response to the customer.
+    parameters:
+      - name: product_search_term
+        type: string
+        description: The product name, description, or variant to search for (e.g., "honey", "pizza", "consulting")
