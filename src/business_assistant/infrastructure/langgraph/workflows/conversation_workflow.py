@@ -2,8 +2,7 @@
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.postgres import PostgresSaver
-import psycopg_pool
-import psycopg
+from psycopg_pool import ConnectionPool
 
 from business_assistant.infrastructure.ai.prompts import get_system_prompt
 from business_assistant.infrastructure.langgraph.nodes.conversation_nodes import State, create_chatbot_node
@@ -51,30 +50,38 @@ class ConversationWorkflow:
         self.graph_builder.add_edge("chatbot", END)
         
     def _init_postgres_checkpointer(self):
-        """Initialize the PostgreSQL checkpointer saver.
+        """Initialize the PostgreSQL checkpointer saver with a connection pool.
         
         Returns:
-            PostgresSaver: The PostgreSQL checkpointer instance.
+            PostgresSaver: The PostgreSQL checkpointer instance with connection pool.
             
         Raises:
-            Exception: If the PostgreSQL connection fails.
+            Exception: If the PostgreSQL connection pool initialization fails.
         """
         try:
             # Create connection string from settings
             connection_string = f"postgresql://{settings.db_user}:{settings.db_password}@{settings.db_host}:{settings.db_port}/{settings.db_name}"
             
-
+            # Connection pool configuration
+            connection_kwargs = {
+                "autocommit": True  # Enable autocommit to avoid transaction blocks for CREATE INDEX CONCURRENTLY
+            }
             
-            # Connect with autocommit=True to avoid transaction blocks for CREATE INDEX CONCURRENTLY
-            conn = psycopg.connect(connection_string, autocommit=True)
+            # Create a connection pool
+            pool = ConnectionPool(
+                conninfo=connection_string,
+                max_size=20,  # Maximum number of connections in the pool
+                min_size=5,   # Minimum number of connections to keep ready
+                kwargs=connection_kwargs
+            )
             
-            # Create PostgresSaver with the direct connection
-            checkpointer = PostgresSaver(conn=conn)
+            # Create PostgresSaver with the connection pool
+            checkpointer = PostgresSaver(pool)
             
-            # Setup the tables (this will work now because autocommit=True)
+            # Setup the tables
             checkpointer.setup()
             
-            logger.info("PostgreSQL checkpointer initialized successfully")
+            logger.info("PostgreSQL checkpointer with connection pool initialized successfully")
             return checkpointer
         except Exception as e:
             logger.error(f"Failed to initialize PostgreSQL checkpointer: {str(e)}")
@@ -91,27 +98,27 @@ class ConversationWorkflow:
         """
         thread_id = f"thread-{user_id}"
         
-        # Only attempt to restore from PostgreSQL checkpointer
+        # Early return if not using PostgreSQL checkpointer
         if not self.using_postgres:
             return thread_id, {}
             
+        # Early return if checkpointer doesn't support listing checkpoints
+        if not hasattr(self.checkpointer, 'list_checkpoints'):
+            return thread_id, {}
+            
         try:
-            # Check if this thread exists in the checkpointer
-            if hasattr(self.checkpointer, 'list_checkpoints'):
-                checkpoints = self.checkpointer.list_checkpoints()
-                logger.debug(f"Available checkpoints: {checkpoints}")
+            # Direct check if thread exists in checkpoints
+            if thread_id not in self.checkpointer.list_checkpoints():
+                return thread_id, {}
                 
-                # Look for the thread ID in available checkpoints
-                if thread_id in checkpoints:
-                    logger.info(f"Found existing checkpoint for thread {thread_id}")
-                    
-                    # Get the latest state for this thread
-                    config = {"configurable": {"thread_id": thread_id}}
-                    state = self.checkpointer.get(thread_id)
-                    
-                    if state and "context" in state:
-                        logger.info(f"Restored context for user {user_id} from checkpoint")
-                        return thread_id, state["context"]
+            # Thread exists, get its state directly
+            state = self.checkpointer.get(thread_id)
+            
+            # Return context if available
+            if state and "context" in state:
+                logger.info(f"Restored context for user {user_id} from checkpoint")
+                return thread_id, state["context"]
+                
         except Exception as e:
             logger.warning(f"Error restoring thread from checkpointer: {str(e)}")
             
