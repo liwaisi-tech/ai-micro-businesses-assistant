@@ -54,12 +54,12 @@ def _get_prompt_template(template: str, values: TypedDict) -> str:
       **values
     }
     for key, value in all_vars.items():
-        template = template.replace(f"{{ {key} }}", str(value))
+        template = template.replace(f"{{{{ {key} }}}}", str(value))
     return template
     
-def get_prompt(member: str, values: TypedDict) -> str:
-    if not member:
-        return get_prompt_template(default_prompt, values)
+def get_prompt(template: str, values: TypedDict) -> str:
+    if not template:
+        return _get_prompt_template(default_prompt, values)
     current_dir = os.path.dirname(__file__)
     template = _read_prompt_template_file(os.path.join(current_dir, f"{member}.md"))
     return _get_prompt_template(template, values)

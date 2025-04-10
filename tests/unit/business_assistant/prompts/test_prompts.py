@@ -1,5 +1,7 @@
 from unittest.mock import patch, mock_open
-from src.business_assistant.prompts.prompts import _read_prompt_template_file, default_prompt, _get_prompt_template
+import datetime
+import re
+from src.business_assistant.prompts.prompts import _read_prompt_template_file, default_prompt, _get_prompt_template, get_prompt
 
 
 class TestPrompts:
@@ -37,3 +39,40 @@ class TestPrompts:
             
             # Verify the result is the file content
             assert result == file_content
+            
+    def test_get_prompt_template_with_coder(self):
+        """Test _get_prompt_template with the coder template.
+        
+        It should replace the template variables with their values.
+        """
+        # Create a test template with multiple variables
+        test_template = """
+---
+CURRENT_TIME: {{ CURRENT_TIME }}
+USER_NAME: {{ USER_NAME }}
+BUSINESS_TYPE: {{ BUSINESS_TYPE }}
+---
+
+You are a professional software engineer proficient in both Python and bash scripting. Your task is to analyze requirements, implement efficient solutions using Python and/or bash, and provide clear documentation of your methodology and results.
+"""
+        
+        # Create a TypedDict for values with custom variables
+        values = {
+            "USER_NAME": "John Doe",
+            "BUSINESS_TYPE": "Bakery"
+        }
+        
+        # Call the function
+        result = _get_prompt_template(test_template, values)
+        
+        # Check that all placeholders are gone
+        assert "{{ CURRENT_TIME }}" not in result
+        assert "{{ USER_NAME }}" not in result
+        assert "{{ BUSINESS_TYPE }}" not in result
+        
+        # Check that our custom values were inserted
+        assert "USER_NAME: John Doe" in result
+        assert "BUSINESS_TYPE: Bakery" in result
+        
+        # Check that some time value was inserted (without validating the exact time)
+        assert re.search(r'CURRENT_TIME: \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}', result) is not None
