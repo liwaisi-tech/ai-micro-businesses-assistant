@@ -1,0 +1,15 @@
+[project]
+name = "ai-micro-businesses-assistant"
+version = "0.1.0"
+description = "AI Micro Businesses Assistant  es una iniciativa Open Source de Liwaisi Tech que usando Asistentes de Inteligencia Artificial ayuda a soportar la operación diaria de las pequeñas y medianas empresas en Zonas Rurales de Colombia."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "langchain-openai>=0.3.12",
+    "langgraph>=0.3.25",
+    "langgraph-supervisor>=0.0.16",
+    "pydantic>=2.11.3",
+    "pydantic-settings>=2.8.1",
+    "pytest>=8.3.5",
+    "python-dotenv>=1.1.0",
+]
